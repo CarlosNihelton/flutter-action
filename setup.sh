@@ -225,7 +225,18 @@ if [ ! -x "$CACHE_PATH/flutter/bin/flutter" ]; then
 		git clone -b "$CHANNEL" "$GIT_SOURCE" "$CACHE_PATH/flutter"
 		if [ "$VERSION" != "any" ]; then
 			git config --global --add safe.directory "$CACHE_PATH/flutter"
-			(cd "$CACHE_PATH/flutter" && git checkout "$VERSION" && flutter doctor)
+			# Sanitize VERSION, as it could be a pattern like 3.15.x
+			GIT_PATTERN="${VERSION/%x/*}"
+			if [ "$VERSION" != "$GIT_PATTERN" ]; then
+			  # We cannot simply checkout as we have a pattern, so we need to find the right ref that matches the pattern
+			  GIT_REF=$(git -C "$CACHE_PATH/flutter" tag -l "$GIT_PATTERN" --sort=-v:refname | grep -v "pre" | head -n 1)
+			  if [ -z "$GIT_REF" ]; then
+			    echo "No git ref found for pattern $GIT_PATTERN"
+			    exit 1
+			  fi
+			  VERSION="$GIT_REF"
+			fi
+			(cd "$CACHE_PATH/flutter" && git checkout "$VERSION" && ./bin/flutter doctor)
 		fi
 	else
 		download_archive "$archive_url" "$CACHE_PATH"
